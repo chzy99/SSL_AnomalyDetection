@@ -6,14 +6,17 @@ Email : z1chen@whu.edu.cn
 Description: Training SimCLR
 '''
 
-from absl import app, flags
+from absl import flags
 
 import torch
 from torch.cuda.amp import GradScaler
+from torch.utils.tensorboard import SummaryWriter
 
 from utils.logger import Logger
 from utils.dataset import Dataset
 from models.model import Model
+
+from trainer import Trainer
 
 log = Logger().getLogger("__finetune__")
 
@@ -41,37 +44,44 @@ def get_training_component(hparams, train_loader):
     model = Model(hparams.backbone_arch, hparams.n_labels, is_pretrained=True)
     optimizer = torch.optim.Adam(model.parameters(), hparams.lr, weight_decay=hparams.weight_decay)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=len(train_loader), eta_min=0, last_epoch=-1)
+    criterion = torch.nn.CrossEntropyLoss().to(hparams['device'])
     scaler = GradScaler(enabled=True)
+    writer = SummaryWriter()
 
     return {
         'model': model,
         'optimizer': optimizer,
         'scheduler': scheduler,
-        'scaler': scaler
+        'criterion': criterion,
+        'scaler': scaler,
+        'writer': writer
     }
 
 def main():
     hparams = {flag.name: flag.value for flag in FLAGS.get_flags_for_module('__main__')}
+    log.info("Training hyperparameters: {}".format(hparams))
+
     # use cuda by default
     if torch.cuda.is_available():
+        log.info("main: cuda is available")
         hparams['device'] = torch.device('cuda')
         torch.backends.cudnn.benchmark = True
         torch.backends.cudnn.deterministic = True
     else:
         hparams['device'] = torch.device('cpu')
     
-    dataset = Dataset.get_dataset(name='cifar10', is_train=True)
+    dataset = Dataset().get_dataset(name=hparams['dataset'], is_train=True)
 
     train_loader = torch.utils.data.DataLoader(
-        dataset, batch_size=hparams.batch_size, shuffle=True,
-        num_workers=12, pin_memory=True, drop_last=True
+        dataset, batch_size=hparams['batch_size'], shuffle=True,
+        num_workers=8, pin_memory=True, drop_last=True
     )
 
     component = get_training_component(hparams=hparams, train_loader=train_loader)
 
-    with torch.cuda.device(hparams.gpu_idx):
-        log.info("Start Training...")
-
+    with torch.cuda.device(hparams['gpu_idx']):
+        trainer = Trainer(component, hparams)
+        trainer.train()
 
 if __name__ == '__main__':
-    app.run(main)
+    main()
