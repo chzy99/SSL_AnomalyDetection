@@ -22,7 +22,7 @@ class Model(nn.Module):
             'vit': lambda: timm.create_model('vit_base_patch16_224', pretrained=is_pretrained, num_classes=out_classes)
         }
         self.model = self.__get_encoder(model_name)
-        feat = self.encoder.fc.in_features
+        feat = self.model.fc.in_features
         self.mlp = nn.Linear(feat, feat)
         self.model.fc = nn.Sequential(self.mlp, nn.ReLU(), self.model.fc)
 

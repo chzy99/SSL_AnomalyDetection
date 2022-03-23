@@ -7,7 +7,7 @@ Description: Trainer
 '''
 
 import os
-import tqdm
+from tqdm import tqdm
 
 import torch
 import torch.nn.functional as F
@@ -40,7 +40,7 @@ class Trainer(object):
         negatives = similarity_matrix[~labels.bool()].view(similarity_matrix.shape[0], -1)
 
         logits = torch.cat([positives, negatives], dim=1)
-        labels = torch.zeros(logits.shape[0], dtype=torch.long).to(self.args.device)
+        labels = torch.zeros(logits.shape[0], dtype=torch.long).to(self.params['device'])
 
         logits = logits / self.params['temperature']
         return logits, labels
@@ -49,7 +49,7 @@ class Trainer(object):
         n_iter = 0
 
         component = self.component
-        model = component['model']
+        model = component['model'].to(self.params['device'])
         optimizer = component['optimizer']
         scheduler = component['scheduler']
         criterion = component['criterion']
@@ -64,39 +64,39 @@ class Trainer(object):
                 images = torch.cat(images, dim=0)
                 images = images.to(self.params['device'])
 
-                with autocast(enabled=True):
-                    features = component.model(images)
+                with autocast():
+                    features = model(images)
                     logits, labels = self.nt_xent_loss(features)
-                    loss = component.criterion(logits, labels)
+                    loss = criterion(logits, labels)
 
-                component.optimizer.zero_grad()
+                optimizer.zero_grad()
 
-                component.scaler.scale(loss).backward()
+                scaler.scale(loss).backward()
 
-                component.scaler.step(component.optimizer)
-                component.scaler.update()
+                scaler.step(optimizer)
+                scaler.update()
 
-                if n_iter % self.args.log_every_n_steps == 0:
+                if n_iter % self.params['log_every_n_steps'] == 0:
                     top1, top5 = accuracy(logits, labels, topk=(1, 5))
-                    self.writer.add_scalar('loss', loss, global_step=n_iter)
-                    self.writer.add_scalar('acc/top1', top1[0], global_step=n_iter)
-                    self.writer.add_scalar('acc/top5', top5[0], global_step=n_iter)
-                    self.writer.add_scalar('learning_rate', self.scheduler.get_lr()[0], global_step=n_iter)
+                    writer.add_scalar('loss', loss, global_step=n_iter)
+                    writer.add_scalar('acc/top1', top1[0], global_step=n_iter)
+                    writer.add_scalar('acc/top5', top5[0], global_step=n_iter)
+                    writer.add_scalar('learning_rate', scheduler.get_lr()[0], global_step=n_iter)
 
                 n_iter += 1
 
             # warmup for the first 10 epochs
             if epoch >= 10:
-                component.scheduler.step()
+                scheduler.step()
             log.info(f"Epoch: {epoch}\tLoss: {loss}\tTop1 accuracy: {top1[0]}")
 
         log.info("Training has finished.")
         # save model checkpoints
-        checkpoint_name = 'checkpoint_{:04d}.pth.tar'.format(self.args.epochs)
+        checkpoint_name = 'checkpoint_{:04d}.pth.tar'.format(self.params['epochs'])
         save_checkpoint({
-            'epoch': self.args.epochs,
-            'arch': self.args.arch,
-            'state_dict': self.model.state_dict(),
-            'optimizer': self.optimizer.state_dict(),
-        }, is_best=False, filename=os.path.join(self.writer.log_dir, checkpoint_name))
-        log.info(f"Model checkpoint and metadata has been saved at {self.writer.log_dir}.")
+            'epoch': self.params['epochs'],
+            'arch': self.params['backbone_arch'],
+            'state_dict': model.state_dict(),
+            'optimizer': optimizer.state_dict(),
+        }, is_best=False, filename=os.path.join(writer.log_dir, checkpoint_name))
+        log.info(f"Model checkpoint and metadata has been saved at {writer.log_dir}.")
