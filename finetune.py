@@ -14,7 +14,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 from utils.logger import Logger
 from utils.dataset import Dataset
-from models.model import Model
+from models.simclr import Simclr
 
 from trainer import Trainer
 
@@ -43,7 +43,7 @@ flags.DEFINE_integer(name='gpu_idx', default=0, help='')
 FLAGS = flags.FLAGS
 
 def get_training_component(hparams, train_loader):
-    model = Model(hparams['backbone_arch'], hparams['n_labels'], is_pretrained=True)
+    model = Simclr(hparams['backbone_arch'], is_pretrained=True)
     optimizer = torch.optim.Adam(model.parameters(), hparams['lr'], weight_decay=hparams['weight_decay'])
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=len(train_loader), eta_min=0, last_epoch=-1)
     criterion = torch.nn.CrossEntropyLoss().to(hparams['device'])

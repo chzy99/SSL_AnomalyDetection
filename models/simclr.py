@@ -13,13 +13,13 @@ import timm
 
 log = Logger().getLogger("__model__")
 
-class Model(nn.Module):
-    def __init__(self, model_name, out_classes, is_pretrained):
+class Simclr(nn.Module):
+    def __init__(self, model_name, is_pretrained):
         super().__init__()
         self.model_map = {
-            'resnet18': lambda: timm.create_model('resnet18', pretrained=is_pretrained, num_classes=out_classes),
-            'resnet50': lambda: timm.create_model('resnet50', pretrained=is_pretrained, num_classes=out_classes),
-            'vit': lambda: timm.create_model('vit_base_patch16_224', pretrained=is_pretrained, num_classes=out_classes)
+            'resnet18': lambda: timm.create_model('resnet18', pretrained=is_pretrained, num_classes=0, global_pool=''),
+            'resnet50': timm.create_model('resnet50', pretrained=is_pretrained, num_classes=0, global_pool=''),
+            'vit': lambda: timm.create_model('vit_base_patch16_224', pretrained=is_pretrained, num_classes=0, global_pool='')
         }
         self.model = self.__get_encoder(model_name)
         feat = self.model.fc.in_features

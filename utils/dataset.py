@@ -40,7 +40,41 @@ class Dataset:
             'cifar10': lambda x: datasets.CIFAR10(self.root, train=x, transform=DataPipeline(size=32), download=True),
         }
     
+    # def get_dataset(self, kwargs):
+    #     if self.is_ad:
+    #         return self.__get_ad_dataset(kwargs.normal_classes)
+    #     else:
+    #         return self.__get_pretrain_dataset(kwargs.name, kwargs.train)
+    
+    ''' get finetune dataset '''
     def get_dataset(self, name, is_train):
         log.info('Dataset.get_dataset name = %s' % name)
         dataset_fn = self.dataset_map[name.lower()]
         return dataset_fn(is_train)
+        
+    ''' get anomaly detection dataset '''
+    def get_ad_dataset(self, normal_classes):
+        return ADDataset(root=self.root, normal_classes=normal_classes)
+
+class ADDataset(datasets):
+    def __init__(self, root, normal_classes: int = 5):
+        super().__init__(root)
+
+        # Define normal and outlier classes
+        self.n_classes = 2  # 0: normal, 1: outlier
+        self.normal_classes = tuple([normal_classes])
+        self.outlier_classes = list(range(0, 10))
+        self.outlier_classes.remove(normal_classes)
+        self.outlier_classes = tuple(self.outlier_classes)
+
+        # CIFAR-10 preprocessing: feature scaling to [0, 1]
+        transform = transforms.ToTensor()
+        target_transform = transforms.Lambda(lambda x: int(x in self.outlier_classes))
+
+        # Get train set
+        self.train_set = datasets.CIFAR10(root=self.root, train=True, transform=transform, target_transform=target_transform,
+                              download=True)
+
+        # Get test set
+        self.test_set = datasets.CIFAR10(root=self.root, train=False, transform=transform, target_transform=target_transform,
+                                  download=True)
