@@ -10,7 +10,7 @@ import logging
 
 class Logger:
     def __get_formatter(self):
-        fmt = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        fmt = logging.Formatter('[DEBUG]: %(asctime)s - %(name)s - %(levelname)s - %(message)s')
         return fmt
 
     def __get_handler(self):

@@ -92,7 +92,7 @@ class Trainer(object):
 
         log.info("Training has finished.")
         # save model checkpoints
-        checkpoint_name = 'checkpoint_{:04d}.pth.tar'.format(self.params['epochs'])
+        checkpoint_name = '{}_checkpoint_{:04d}.pth.tar'.format(self.params['backbone_arch'], self.params['epochs'])
         save_checkpoint({
             'epoch': self.params['epochs'],
             'arch': self.params['backbone_arch'],
