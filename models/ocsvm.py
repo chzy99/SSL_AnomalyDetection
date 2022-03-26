@@ -8,6 +8,7 @@ Description: Graduation Design
 
 from utils.logger import Logger
 import time
+from tqdm import tqdm
 from torch.utils.data import DataLoader
 
 import numpy as np
@@ -20,7 +21,7 @@ class OCSVM(object):
     def __init__(self, params, encoder):
         """Init OCSVM instance."""
         self.params = params
-        self.encoder = encoder
+        self.encoder = encoder.to(self.params['device'])
         self.model = None
         self.linear_model = None
         self.results = {
@@ -36,29 +37,33 @@ class OCSVM(object):
     def train(self, dataset):
         gammas = np.logspace(-7, 2, num=10, base=2)
         best_auc = 0.0
-        train_loader = DataLoader(dataset=dataset.train_set, batch_size=128, shuffle=True,
+        train_loader = DataLoader(dataset=dataset.train_set, batch_size=self.params['batch_size'], shuffle=True,
                                   num_workers=self.params['num_of_workers'], drop_last=False)
 
         X = ()
-        for data in train_loader:
-            inputs, _, _, _ = data
-            inputs = self.encoder(inputs.to(self.params['device']))
+        for inputs, _ in tqdm(train_loader):
+            # log.info('inputs shape {}'.format(inputs.shape))
+            inputs = self.encoder.extract_features(inputs.to(self.params['device']))
+            # log.info('feature shape {}'.format(inputs.shape))
             X_batch = inputs.view(inputs.size(0), -1)
+            # log.info('X_batch shape {}'.format(X_batch.shape))
             X += (X_batch.cpu().data.numpy(),)
+            
         X = np.concatenate(X)
-
+        log.info('X shape {}'.format(X.shape))
+        
         # Training
         log.info('Starting training...')
 
         # Sample hold-out set from test set
-        _, test_loader = dataset.loaders(batch_size=128, num_workers=self.params['num_of_workers'])
+        test_loader = DataLoader(dataset=dataset.test_set, batch_size=self.params['batch_size'], shuffle=True,
+                                  num_workers=self.params['num_of_workers'], drop_last=False)
 
         X_test = ()
         labels = []
-        for data in test_loader:
-            inputs, label_batch, _, _ = data
+        for inputs, label_batch in tqdm(test_loader):
             inputs, label_batch = inputs.to(self.params['device']), label_batch.to(self.params['device'])
-            inputs = self.encoder(inputs.to(self.params['device']))
+            inputs = self.encoder.extract_features(inputs.to(self.params['device']))
             X_batch = inputs.view(inputs.size(0), -1)
             X_test += (X_batch.cpu().data.numpy(),)
             labels += label_batch.cpu().data.numpy().astype(np.int64).tolist()
@@ -72,9 +77,9 @@ class OCSVM(object):
         labels = np.array([0] * n_val_normal + [1] * n_val_outlier)
 
         i = 1
-        for gamma in gammas:
+        for gamma in tqdm(gammas):
             # Model candidate
-            model = OneClassSVM(kernel=self.params['kernel'], nu=self.params['nu'], gamma=gamma)
+            model = OneClassSVM(kernel=self.params['kernel'], nu=self.params['nu'], gamma=gamma, verbose=True)
 
             start_time = time.time()
             model.fit(X)
@@ -108,7 +113,7 @@ class OCSVM(object):
         log.info('Finished training.')
 
     def test(self, dataset):
-        _, test_loader = dataset.loaders(batch_size=128, num_workers=self.params['num_of_workers'])
+        _, test_loader = dataset.loaders(batch_size=self.params['batch_size'], num_workers=self.params['num_of_workers'])
 
         # Get data from loader
         idx_label_score = []

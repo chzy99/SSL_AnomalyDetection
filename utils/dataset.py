@@ -14,7 +14,7 @@ from torchvision import datasets, transforms
 log = Logger().getLogger(module_name='__dataset__')
 
 class DataPipeline:
-    def __init__(self, params):
+    def __init__(self, params=None):
         model_name = params['backbone_arch']
         self.size = int(params['input_shape'].split(',')[0])
         self.kernel_size = int(0.1 * self.size)
@@ -51,15 +51,10 @@ class Dataset:
         log.info('Dataset.get_dataset name = %s' % name)
         dataset_fn = self.dataset_map[name.lower()]
         return dataset_fn()
-        
-    ''' get anomaly detection dataset '''
-    def get_ad_dataset(self, normal_classes):
-        return ADDataset(root=self.root, normal_classes=normal_classes)
 
 class ADDataset(object):
     def __init__(self, root, normal_classes: int = 5):
-        super().__init__(root)
-
+        
         self.n_classes = 2
         self.normal_classes = tuple([normal_classes])
         self.outlier_classes = list(range(0, 10))
@@ -69,8 +64,8 @@ class ADDataset(object):
         transform = transforms.ToTensor()
         target_transform = transforms.Lambda(lambda x: int(x in self.outlier_classes))
 
-        self.train_set = datasets.CIFAR10(root=self.root, train=True, transform=transform, target_transform=target_transform,
+        self.train_set = datasets.CIFAR10(root=root, train=True, transform=transform, target_transform=target_transform,
                               download=True)
 
-        self.test_set = datasets.CIFAR10(root=self.root, train=False, transform=transform, target_transform=target_transform,
+        self.test_set = datasets.CIFAR10(root=root, train=False, transform=transform, target_transform=target_transform,
                                   download=True)
