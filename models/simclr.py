@@ -11,13 +11,14 @@ from utils.logger import Logger
 from torch import nn
 import timm
 
-log = Logger().getLogger("__model__")
+log = Logger().getLogger("__simclr.py__")
 
 class Simclr(nn.Module):
     def __init__(self, model_name, num_classes, is_pretrained):
         super().__init__()
         self.model_map = {
             'effinet': lambda: timm.create_model('efficientnet_b0', pretrained=is_pretrained, num_classes=num_classes),
+            'resnet18': lambda: timm.create_model('resnet18', pretrained=is_pretrained, num_classes=num_classes),
             'resnet50': lambda: timm.create_model('resnet50', pretrained=is_pretrained, num_classes=num_classes),
             'vit': lambda: timm.create_model('vit_base_patch16_224', pretrained=is_pretrained, num_classes=num_classes)
         }
@@ -32,6 +33,7 @@ class Simclr(nn.Module):
         return model_fn()
     
     def __insert_mlp(self, model_name):
+        # TODO: hard code
         if 'resnet' in model_name:
             feat = self.model.fc.in_features
             log.info('model in-feature dim: {}'.format(feat))

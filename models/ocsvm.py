@@ -15,7 +15,7 @@ import numpy as np
 from sklearn.svm import OneClassSVM
 from sklearn.metrics import roc_auc_score
 
-log = Logger().getLogger("__ocsvm__")
+log = Logger().getLogger("__ocsvm.py__")
 
 class OCSVM(object):
     def __init__(self, params, encoder):
@@ -29,13 +29,10 @@ class OCSVM(object):
             'test_time': None,
             'test_auc': None,
             'test_scores': None,
-            'train_time_linear': None,
-            'test_time_linear': None,
-            'test_auc_linear': None
         }
 
     def train(self, dataset):
-        gammas = np.logspace(-7, 2, num=10, base=2)
+        gammas = np.logspace(-7, 3, num=12, base=2)
         best_auc = 0.0
         train_loader = DataLoader(dataset=dataset.train_set, batch_size=self.params['batch_size'], shuffle=True,
                                   num_workers=self.params['num_of_workers'], drop_last=False)
@@ -69,12 +66,13 @@ class OCSVM(object):
             labels += label_batch.cpu().data.numpy().astype(np.int64).tolist()
         X_test, labels = np.concatenate(X_test), np.array(labels)
         n_test, n_normal, n_outlier = len(X_test), np.sum(labels == 0), np.sum(labels == 1)
-        n_val = int(0.1 * n_test)
-        n_val_normal, n_val_outlier = int(n_val * (n_normal/n_test)), int(n_val * (n_outlier/n_test))
+        n_val = int(0.5 * n_test)
+        n_val_normal, n_val_outlier = int(n_val * (n_normal/n_test)), int(n_val * 0.01 * (n_outlier/n_test))
         perm = np.random.permutation(n_test)
         X_val = np.concatenate((X_test[perm][labels[perm] == 0][:n_val_normal],
                                 X_test[perm][labels[perm] == 1][:n_val_outlier]))
         labels = np.array([0] * n_val_normal + [1] * n_val_outlier)
+        log.info('Number of test samples: {} number of outlier: {}'.format(labels.size, np.sum(labels == 1)))
 
         i = 1
         for gamma in tqdm(gammas):
@@ -82,6 +80,7 @@ class OCSVM(object):
             model = OneClassSVM(kernel=self.params['kernel'], nu=self.params['nu'], gamma=gamma, verbose=True)
 
             start_time = time.time()
+            log.info('Input feature shape: {}'.format(X.shape))
             model.fit(X)
             train_time = time.time() - start_time
 
@@ -102,64 +101,55 @@ class OCSVM(object):
             i += 1
 
         # linear model
-        self.linear_model = OneClassSVM(kernel='linear', nu=self.nu)
-        start_time = time.time()
-        self.linear_model.fit(X)
-        train_time = time.time() - start_time
-        self.results['train_time_linear'] = train_time
+        # self.linear_model = OneClassSVM(kernel='linear', nu=self.nu)
+        # start_time = time.time()
+        # self.linear_model.fit(X)
+        # train_time = time.time() - start_time
+        # self.results['train_time_linear'] = train_time
 
-        log.info(f'Best Model: | Gamma: {self.gamma:.8f} | AUC: {100. * best_auc:.2f}')
-        log.info('Training Time: {:.3f}s'.format(self.results['train_time']))
-        log.info('Finished training.')
+        # log.info(f'Best Model: | Gamma: {self.gamma:.8f} | AUC: {100. * best_auc:.2f}')
+        # log.info('Training Time: {:.3f}s'.format(self.results['train_time']))
+        # log.info('Finished training.')
 
-    def test(self, dataset):
-        _, test_loader = dataset.loaders(batch_size=self.params['batch_size'], num_workers=self.params['num_of_workers'])
+    # def test(self, dataset):
+    #     test_loader = DataLoader(dataset=dataset.test_set, batch_size=self.params['batch_size'], shuffle=True,
+    #                               num_workers=self.params['num_of_workers'], drop_last=False)
 
-        # Get data from loader
-        idx_label_score = []
-        X = ()
-        idxs = []
-        labels = []
-        for data in test_loader:
-            inputs, label_batch, _, idx = data
-            inputs, label_batch, idx = inputs.to(self.params['device']), label_batch.to(self.params['device']), idx.to(self.params['device'])
-            inputs = self.encoder(inputs)
-            X_batch = inputs.view(inputs.size(0), -1)
-            X += (X_batch.cpu().data.numpy(),)
-            idxs += idx.cpu().data.numpy().astype(np.int64).tolist()
-            labels += label_batch.cpu().data.numpy().astype(np.int64).tolist()
-        X = np.concatenate(X)
+    #     # Get data from loader
+    #     idx_label_score = []
+    #     X = ()
+    #     idxs = []
+    #     labels = []
+    #     for idx, (inputs, label_batch) in enumerate(test_loader):
+    #         inputs, label_batch, idx = inputs.to(self.params['device']), label_batch.to(self.params['device']), idx.to(self.params['device'])
+    #         inputs = self.encoder.extract_features(inputs)
+    #         X_batch = inputs.view(inputs.size(0), -1)
+    #         X += (X_batch.cpu().data.numpy(),)
+    #         idxs += idx.cpu().data.numpy().astype(np.int64).tolist()
+    #         labels += label_batch.cpu().data.numpy().astype(np.int64).tolist()
+    #     X = np.concatenate(X)
 
-        # Testing
-        log.info('Starting testing...')
-        start_time = time.time()
+    #     # Testing
+    #     log.info('Starting testing...')
+    #     start_time = time.time()
 
-        scores = (-1.0) * self.model.decision_function(X)
+    #     scores = (-1.0) * self.model.decision_function(X)
 
-        self.results['test_time'] = time.time() - start_time
-        scores = scores.flatten()
-        self.params['rho'] = -self.model.intercept_[0]
+    #     self.results['test_time'] = time.time() - start_time
+    #     scores = scores.flatten()
+    #     self.params['rho'] = -self.model.intercept_[0]
 
-        # Save triples of (idx, label, score) in a list
-        idx_label_score += list(zip(idxs, labels, scores.tolist()))
-        self.results['test_scores'] = idx_label_score
+    #     # Save triples of (idx, label, score) in a list
+    #     idx_label_score += list(zip(idxs, labels, scores.tolist()))
+    #     self.results['test_scores'] = idx_label_score
 
-        # Compute AUC
-        _, labels, scores = zip(*idx_label_score)
-        labels = np.array(labels)
-        scores = np.array(scores)
-        self.results['test_auc'] = roc_auc_score(labels, scores)
+    #     # Compute AUC
+    #     _, labels, scores = zip(*idx_label_score)
+    #     labels = np.array(labels)
+    #     scores = np.array(scores)
+    #     self.results['test_auc'] = roc_auc_score(labels, scores)
 
-        # linear model
-        start_time = time.time()
-        scores_linear = (-1.0) * self.linear_model.decision_function(X)
-        self.results['test_time_linear'] = time.time() - start_time
-        scores_linear = scores_linear.flatten()
-        self.results['test_auc_linear'] = roc_auc_score(labels, scores_linear)
-        log.info('Test AUC linear model: {:.2f}%'.format(100. * self.results['test_auc_linear']))
-        log.info('Test Time linear model: {:.3f}s'.format(self.results['test_time_linear']))
-
-        # Log results
-        log.info('Test AUC: {:.2f}%'.format(100. * self.results['test_auc']))
-        log.info('Test Time: {:.3f}s'.format(self.results['test_time']))
-        log.info('Finished testing.')
+    #     # Log results
+    #     log.info('Test AUC: {:.2f}%'.format(100. * self.results['test_auc']))
+    #     log.info('Test Time: {:.3f}s'.format(self.results['test_time']))
+    #     log.info('Finished testing.')

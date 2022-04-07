@@ -18,32 +18,32 @@ from models.simclr import Simclr
 
 from trainer import Trainer
 
-log = Logger().getLogger("__finetune__")
+log = Logger().getLogger("__finetune.py__")
 
 # data
-flags.DEFINE_string(name='dataset', default='cifar10', help='in-distribution dataset')
+flags.DEFINE_string(name='dataset', default='cifar10', help='')
 flags.DEFINE_integer(name='n_labels', default=10, help='')
 flags.DEFINE_string(name='input_shape', default='32,32,3', help='input image shape')
 
 # model
-flags.DEFINE_string(name='backbone_arch', default='vit', help='backbone architecture of feature extractor')
-flags.DEFINE_integer(name='n_views', default=2, help='')
+flags.DEFINE_string(name='backbone', default='resnet50', help='backbone architecture of feature extractor')
+flags.DEFINE_integer(name='n_views', default=2, help='types of data aug')
 
 # train
-flags.DEFINE_integer(name='epochs', default=50, help='')
-flags.DEFINE_integer(name='batch_size', default=16, help='')
-flags.DEFINE_float(name='lr', default=3e-4, help='')
+flags.DEFINE_integer(name='epochs', default=200, help='')
+flags.DEFINE_integer(name='batch_size', default=256, help='')
+flags.DEFINE_float(name='lr', default=6e-4, help='')
 flags.DEFINE_float(name='weight_decay', default=1e-4, help='')
 flags.DEFINE_float(name='temperature', default=7e-2, help='')
 flags.DEFINE_integer(name='log_every_n_steps', default=100, help='')
 
-flags.DEFINE_integer(name='seed', default=1234, help='')
+flags.DEFINE_integer(name='seed', default=1, help='')
 flags.DEFINE_integer(name='gpu_idx', default=0, help='')
 
 FLAGS = flags.FLAGS
 
 def get_training_component(hparams, train_loader):
-    model = Simclr(hparams['backbone_arch'], num_classes=hparams['n_labels'], is_pretrained=True)
+    model = Simclr(hparams['backbone'], num_classes=hparams['n_labels'], is_pretrained=True)
     optimizer = torch.optim.Adam(model.parameters(), hparams['lr'], weight_decay=hparams['weight_decay'])
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=len(train_loader), eta_min=0, last_epoch=-1)
     criterion = torch.nn.CrossEntropyLoss().to(hparams['device'])

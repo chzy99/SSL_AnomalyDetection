@@ -1,1 +1,1 @@
-# graduation-design WHU CSE 2022
+# Anomaly Detection Based on Self-Supervised Learning (Hybrid)
