@@ -6,3 +6,6 @@ baseline/
 visualize.sh
 code.txt
 *.tar
+deep_svdd/data/
+deep_svdd/log/cifar10_test/
+deep_svdd/*cache*/
