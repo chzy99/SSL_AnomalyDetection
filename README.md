@@ -1,4 +1,4 @@
-# Anomaly Detection Based on Self-Supervised Learning (Hybrid)
+# Anomaly Detection Based on Self-Supervised Learning
 Anomaly detection technology has not only been widely used, but also plays an
 extremely critical role in financial fraud detection, medical diagnosis and even military
 detection. Therefore, the research on anomaly detection has always been increasing. In
